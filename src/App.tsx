@@ -23,6 +23,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+import AptitudePage from "@/pages/AptitudePage";
+import ProgrammingPage from "@/pages/ProgrammingPage";
+
 const AppRoutes = () => {
   const { isAuthenticated } = useAuth();
 
@@ -36,6 +39,8 @@ const AppRoutes = () => {
         <Route path="/interview/:id" element={<ProtectedRoute><InterviewPage /></ProtectedRoute>} />
         <Route path="/feedback/:id" element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/aptitude" element={<ProtectedRoute><AptitudePage /></ProtectedRoute>} />
+        <Route path="/programming" element={<ProtectedRoute><ProgrammingPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

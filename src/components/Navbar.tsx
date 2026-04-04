@@ -23,16 +23,37 @@ const Navbar: React.FC = () => {
           <button
             onClick={() => navigate("/")}
             className={cn(
-              "text-sm px-3 py-1.5 rounded-lg transition-colors",
+              "text-sm px-3 py-1.5 rounded-lg transition-colors font-medium",
               location.pathname === "/" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
             Home
           </button>
+
+          <button
+            onClick={() => navigate("/aptitude")}
+            className={cn(
+              "text-sm px-3 py-1.5 rounded-lg transition-colors font-medium",
+              location.pathname === "/aptitude" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Aptitude
+          </button>
+
+          <button
+            onClick={() => navigate("/programming")}
+            className={cn(
+              "text-sm px-3 py-1.5 rounded-lg transition-colors font-medium",
+              location.pathname === "/programming" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Programming
+          </button>
+
           <button
             onClick={() => navigate("/profile")}
             className={cn(
-              "text-sm px-3 py-1.5 rounded-lg transition-colors",
+              "text-sm px-3 py-1.5 rounded-lg transition-colors font-medium",
               location.pathname === "/profile" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
