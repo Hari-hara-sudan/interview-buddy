@@ -23,9 +23,14 @@ const InterviewCard: React.FC<InterviewCardProps> = ({ interview }) => {
           <h3 className="font-semibold text-card-foreground">{interview.role}</h3>
           <p className="text-sm text-muted-foreground mt-1">{interview.techStack}</p>
         </div>
-        <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full capitalize", levelColors[interview.experienceLevel])}>
-          {interview.experienceLevel}
-        </span>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full capitalize", levelColors[interview.experienceLevel])}>
+            {interview.experienceLevel}
+          </span>
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground capitalize">
+            {interview.interviewType?.replace("-", " ") || "mixed"}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">

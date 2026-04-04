@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState } from "react";
 
+export type InterviewType = "technical" | "behavioral" | "mixed" | "system-design" | "hr";
+
 export interface Interview {
   id: string;
   role: string;
   techStack: string;
   experienceLevel: "entry" | "mid" | "senior";
+  interviewType: InterviewType;
   questions: string[];
   createdAt: string;
   completed: boolean;

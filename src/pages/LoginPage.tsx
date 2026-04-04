@@ -32,7 +32,7 @@ const LoginPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">VoicePrep</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Vox Mentor</h1>
           <p className="text-sm text-muted-foreground mt-2">
             AI-powered voice interview preparation
           </p>

@@ -31,7 +31,7 @@ const FeedbackPage: React.FC = () => {
       <div className="text-center mb-10">
         <h1 className="text-2xl font-bold text-foreground">Interview Feedback</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {interview.role} • {interview.techStack}
+          {interview.role} • {interview.techStack} • <span className="capitalize">{interview.interviewType?.replace("-", " ") || "Mixed"}</span>
         </p>
       </div>
 
