@@ -1,18 +1,48 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import VoiceAvatar from "@/components/VoiceAvatar";
 import TranscriberBar from "@/components/TranscriberBar";
-import { useInterviews, type Interview } from "@/contexts/InterviewContext";
+import { useInterviews, type Interview, type InterviewType } from "@/contexts/InterviewContext";
 
-type Step = "idle" | "role" | "techStack" | "experience" | "generating" | "done";
+type Step = "idle" | "role" | "techStack" | "experience" | "interviewType" | "generating" | "done";
 
-const SAMPLE_QUESTIONS = [
-  "Explain the concept of closures in JavaScript.",
-  "What is the difference between SQL and NoSQL databases?",
-  "Describe the SOLID principles in software design.",
-  "How does garbage collection work in your preferred language?",
-  "What are microservices and when would you use them?",
-];
+const SAMPLE_QUESTIONS: Record<InterviewType, string[]> = {
+  technical: [
+    "Explain the concept of closures in JavaScript.",
+    "What is the difference between SQL and NoSQL databases?",
+    "Describe the SOLID principles in software design.",
+    "How does garbage collection work in your preferred language?",
+    "What are microservices and when would you use them?",
+  ],
+  behavioral: [
+    "Tell me about a time you handled a conflict in your team.",
+    "Describe a challenging project you completed successfully.",
+    "How do you prioritize tasks when everything is urgent?",
+    "Give an example of when you received constructive criticism.",
+    "How do you handle tight deadlines?",
+  ],
+  mixed: [
+    "Explain the concept of closures in JavaScript.",
+    "Tell me about a time you handled a conflict in your team.",
+    "What are microservices and when would you use them?",
+    "Describe a challenging project you completed successfully.",
+    "How does garbage collection work in your preferred language?",
+  ],
+  "system-design": [
+    "Design a URL shortener like bit.ly.",
+    "How would you design a real-time chat application?",
+    "Design a scalable notification system.",
+    "How would you architect a ride-sharing service?",
+    "Design a distributed cache system.",
+  ],
+  hr: [
+    "Why are you interested in this role?",
+    "Where do you see yourself in 5 years?",
+    "What are your salary expectations?",
+    "Why are you leaving your current position?",
+    "What motivates you at work?",
+  ],
+};
 
 const GenerateInterviewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -57,13 +87,23 @@ const GenerateInterviewPage: React.FC = () => {
       } else if (step === "experience") {
         const level = value.toLowerCase().includes("senior") ? "senior" : value.toLowerCase().includes("entry") ? "entry" : "mid";
         setExperienceLevel(level);
+        simulateAgent("What type of interview would you like? Technical, Behavioral, Mixed, System Design, or HR?", "interviewType");
+      } else if (step === "interviewType") {
+        const typeMap: Record<string, InterviewType> = {
+          technical: "technical",
+          behavioral: "behavioral",
+          mixed: "mixed",
+          "system design": "system-design",
+          hr: "hr",
+        };
+        const selectedType = typeMap[value.toLowerCase()] || "mixed";
         setStep("generating");
-        generateInterview(role, techStack, level);
+        generateInterview(role, techStack, experienceLevel, selectedType);
       }
     }, 1500);
   };
 
-  const generateInterview = (r: string, ts: string, level: "entry" | "mid" | "senior") => {
+  const generateInterview = (r: string, ts: string, level: "entry" | "mid" | "senior", type: InterviewType) => {
     setAgentSpeaking(true);
     setTranscript("Generating your interview questions...");
 
@@ -73,7 +113,8 @@ const GenerateInterviewPage: React.FC = () => {
         role: r || "Software Engineer",
         techStack: ts || "React, Node.js",
         experienceLevel: level,
-        questions: SAMPLE_QUESTIONS,
+        interviewType: type,
+        questions: SAMPLE_QUESTIONS[type],
         createdAt: new Date().toISOString(),
         completed: false,
       };
@@ -147,6 +188,18 @@ const GenerateInterviewPage: React.FC = () => {
                 className="bg-secondary text-secondary-foreground px-6 py-2 rounded-lg text-sm hover:bg-secondary/80 transition-colors"
               >
                 {lvl}
+              </button>
+            ))}
+          </div>
+        ) : step === "interviewType" && !agentSpeaking ? (
+          <div className="flex gap-3 flex-wrap justify-center">
+            {["Technical", "Behavioral", "Mixed", "System Design", "HR"].map((type) => (
+              <button
+                key={type}
+                onClick={() => handleUserResponse(type)}
+                className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-secondary/80 transition-colors"
+              >
+                {type}
               </button>
             ))}
           </div>

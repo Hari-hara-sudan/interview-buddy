@@ -83,7 +83,7 @@ const InterviewPage: React.FC = () => {
       <div className="text-center mb-4 animate-fade-in">
         <h1 className="text-2xl font-bold text-foreground">Interview Session</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {interview.role} • {interview.techStack}
+          {interview.role} • {interview.techStack} • <span className="capitalize">{interview.interviewType?.replace("-", " ") || "Mixed"}</span>
         </p>
       </div>
 

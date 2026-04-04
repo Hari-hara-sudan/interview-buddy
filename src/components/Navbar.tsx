@@ -16,7 +16,7 @@ const Navbar: React.FC = () => {
     <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
       <div className="container flex items-center justify-between h-14 px-4 max-w-5xl mx-auto">
         <button onClick={() => navigate("/")} className="text-lg font-semibold text-foreground tracking-tight">
-          VoicePrep
+          Vox Mentor
         </button>
 
         <nav className="flex items-center gap-1">
