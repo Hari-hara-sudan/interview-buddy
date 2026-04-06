@@ -84,7 +84,7 @@ const FeedbackPage: React.FC = () => {
       <div className="text-center mt-10">
         <button
           onClick={() => navigate("/")}
-          className="bg-primary text-primary-foreground px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="btn-gradient px-6 py-2.5 rounded-lg text-sm"
         >
           Back to Home
         </button>

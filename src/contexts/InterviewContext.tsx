@@ -14,6 +14,7 @@ export interface Interview {
   questions: string[];
   createdAt: string;
   completed: boolean;
+  transcript?: string;
   feedback?: {
     score: number;
     summary: string;

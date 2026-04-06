@@ -7,7 +7,7 @@ import vapi, { VAPI_ASSISTANT_ID_ONBOARDING } from "@/lib/vapi";
 import { genAI } from "@/lib/gemini";
 import { useAuth } from "@/contexts/AuthContext";
 
-type Step = "idle" | "listening" | "generating" | "done";
+type Step = "idle" | "connecting" | "listening" | "generating" | "done";
 
 const GenerateInterviewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -54,10 +54,18 @@ const GenerateInterviewPage: React.FC = () => {
         if (toolCall) {
           try {
             confirmedDetailsRef.current = JSON.parse(toolCall.function.arguments);
+            
+            // Tell the voice agent to say goodbye and hang up immediately
+            // This prevents the tool-call timeout and triggers the Gemini generation locally.
+            vapi.send({
+              type: "say",
+              content: "Perfect, I have all the details. Generating your interview now.",
+              endCallAfterSpoken: true
+            });
+            
           } catch (e) {
             console.error("Failed to parse tool call arguments", e);
           }
-          // The Vapi agent will say goodbye and then trigger call-end automatically based on its system prompt.
         }
       }
     };
@@ -84,7 +92,7 @@ Return purely a JSON object structured exactly like this:
   "techStack": "${details.techstack || "extracted tech stack"}",
   "experienceLevel": "${details.level || "mid"}",
   "interviewType": "${details.type || "Mixed"}",
-  "questions": ["Q1", "Q2", "Q3", ...] // Exact 'amount' requested by user
+  "questions": ["Write actual question 1 here", "Write actual question 2 here", "Write actual question 3 here"] // Length must equal ${details.amount || 5}
 }`;
         } else {
           prompt = `Based on the following conversation between an AI assistant and a user, extract the user's interview requirements and generate the exact number of technical or behavioral questions they requested.
@@ -97,7 +105,7 @@ Return purely a JSON object structured exactly like this:
   "techStack": "extracted tech stack",
   "experienceLevel": "entry | mid | senior",
   "interviewType": "Technical | Behavioural | Mixed",
-  "questions": ["Q1", "Q2", "Q3", ...] // Exact 'amount' requested by user
+  "questions": ["Write actual question 1 here", "Write actual question 2 here", "Write actual question 3 here"] // Length must equal the requested amount
 }`;
         }
 
@@ -130,11 +138,27 @@ Return purely a JSON object structured exactly like this:
       }
     };
 
+    const handleError = (error: any) => {
+      console.error("Vapi Error Event:", error);
+      
+      // Ignore normal call end events wrapped as Daily.co errors
+      if (error?.type === "daily-error" && error?.error?.errorMsg === "Meeting has ended") {
+        return;
+      }
+      
+      const errorMessage = error?.message || error?.error?.errorMsg || error?.toString?.() || "Connection failed";
+      setTranscript(`Error: ${errorMessage}`);
+      setStep("idle");
+      setAgentSpeaking(false);
+      setUserSpeaking(false);
+    };
+
     vapi.on("call-start", handleCallStart);
     vapi.on("speech-start", handleSpeechStart);
     vapi.on("speech-end", handleSpeechEnd);
     vapi.on("message", handleMessage);
     vapi.on("call-end", handleCallEnd);
+    vapi.on("error", handleError);
 
     return () => {
       vapi.off("call-start", handleCallStart);
@@ -142,96 +166,135 @@ Return purely a JSON object structured exactly like this:
       vapi.off("speech-end", handleSpeechEnd);
       vapi.off("message", handleMessage);
       vapi.off("call-end", handleCallEnd);
+      vapi.off("error", handleError);
     };
   }, [addInterview, navigate]);
 
-  const startConversation = () => {
+  const startConversation = async () => {
     fullConversationRef.current = "";
-    vapi.start(VAPI_ASSISTANT_ID_ONBOARDING, {
-      variableValues: {
-        username: user?.displayName || "Candidate",
-        userId: user?.uid || "",
-      }
-    });
+    setStep("connecting");
+    
+    try {
+      // Check if microphone permissions are available
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      
+      const result = await vapi.start(VAPI_ASSISTANT_ID_ONBOARDING, {
+        variableValues: {
+          username: user?.displayName || "Candidate",
+          userId: user?.uid || "guest_user_" + Math.random().toString(36).substring(7),
+        }
+      });
+      
+      console.log("Vapi call started:", result);
+    } catch (err: any) {
+      console.error("Failed to start Vapi call:", err);
+      setStep("idle");
+      setTranscript(`Error: ${err?.message || "Failed to connect to agent. Please check microphone permissions and try again."}`);
+      alert(`Connection failed: ${err?.message || "Unknown error. Check browser console for details."}`);
+    }
   };
 
   return (
-    <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Dynamic Background Blurs */}
-      <div className="absolute top-[20%] left-[10%] w-[35rem] h-[35rem] bg-primary/20 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse-glow" />
-      <div className="absolute bottom-[20%] right-[10%] w-[25rem] h-[25rem] bg-accent-foreground/20 rounded-full blur-[100px] pointer-events-none -z-10 animate-pulse-glow" style={{ animationDelay: '1s' }} />
-
-      <div className="container max-w-4xl mx-auto backdrop-blur-xl bg-background/60 border border-white/10 dark:border-white/5 rounded-3xl shadow-2xl p-10 md:p-14 animate-fade-in">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-foreground drop-shadow-sm mb-4">
-            Voice Onboarding
-          </h1>
-          <p className="text-lg text-muted-foreground font-medium">
-            Let's chat! Our AI will analyze your background and instantly tailor your interview session.
-          </p>
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      <div className="flex flex-col h-full px-4 py-3 gap-2">
+        {/* Header - Ultra Compact */}
+        <div className="flex-shrink-0">
+          <h1 className="text-lg font-bold text-gray-900">Voice Onboarding</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Tell our AI about your interview preferences</p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-20 mb-14 relative z-10">
-          <div className="relative group transition-transform duration-500 hover:scale-105">
-            <div className="absolute inset-0 bg-primary/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <VoiceAvatar type="agent" isSpeaking={agentSpeaking} />
-          </div>
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-px h-16 bg-gradient-to-b from-transparent via-border to-transparent" />
-            <span className="text-sm font-bold tracking-widest text-muted-foreground uppercase">Sync</span>
-            <div className="w-px h-16 bg-gradient-to-b from-transparent via-border to-transparent" />
-          </div>
-          <div className="relative group transition-transform duration-500 hover:scale-105">
-            <div className="absolute inset-0 bg-success/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <VoiceAvatar type="user" isSpeaking={userSpeaking} />
-          </div>
-        </div>
+        {/* Main Content - Flexible Layout */}
+        <div className="flex-1 flex flex-col gap-2 min-h-0">
+          {/* Participants - Compact */}
+          <div className="flex items-center justify-center gap-2 flex-shrink-0">
+            {/* Agent */}
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="relative mb-1">
+                <div className={`absolute inset-0 rounded-full bg-blue-200 blur-lg transition-opacity ${agentSpeaking ? "opacity-100" : "opacity-30"}`}></div>
+                <div className="relative scale-65">
+                  <VoiceAvatar type="agent" isSpeaking={agentSpeaking} />
+                </div>
+              </div>
+              <p className="text-xs font-bold text-blue-600">AI</p>
+            </div>
 
-        <div className="w-full max-w-2xl mx-auto rounded-2xl overflow-hidden glassmorphism shadow-inner bg-black/5 dark:bg-white/5 p-4 transform transition-all duration-300 hover:shadow-primary/10">
-          <TranscriberBar text={transcript} isListening={step === "listening" && !agentSpeaking} />
-        </div>
+            {/* Divider */}
+            <div className="flex flex-col items-center gap-1 flex-shrink-0">
+              <div className="w-px h-12 bg-gray-200"></div>
+              <p className="text-xs text-gray-500 font-bold">Sync</p>
+              <div className="w-px h-12 bg-gray-200"></div>
+            </div>
 
-        <div className="mt-12 flex flex-col items-center gap-4">
-          {step === "idle" && (
-            <button
-              onClick={startConversation}
-              className="group relative px-8 py-4 bg-gradient-to-r from-primary to-accent-foreground text-primary-foreground rounded-2xl text-lg font-bold hover:shadow-[0_0_40px_rgba(var(--primary),0.4)] transition-all duration-300 hover:-translate-y-1 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <span className="relative flex items-center justify-center gap-2">
-                <svg className="w-5 h-5 transition-transform duration-500 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            {/* User */}
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="relative mb-1">
+                <div className={`absolute inset-0 rounded-full bg-green-200 blur-lg transition-opacity ${userSpeaking ? "opacity-100" : "opacity-30"}`}></div>
+                <div className="relative scale-65">
+                  <VoiceAvatar type="user" isSpeaking={userSpeaking} />
+                </div>
+              </div>
+              <p className="text-xs font-bold text-green-600">You</p>
+            </div>
+          </div>
+
+          {/* Transcript Area - Flexible Height */}
+          <div className="flex-1 flex flex-col min-h-0 bg-gray-50 border border-gray-100 rounded-lg p-2">
+            <p className="text-xs font-bold text-gray-500 mb-1 flex-shrink-0">Live Conversation</p>
+            <div className="bg-white border border-gray-200 rounded p-2 overflow-y-auto flex-1 text-xs leading-relaxed">
+              {transcript ? (
+                <TranscriberBar text={transcript} isListening={step === "listening" && !agentSpeaking} />
+              ) : (
+                <div className="text-gray-400 text-xs italic">{step === "idle" ? "Ready to start..." : "Connecting to agent..."}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="flex justify-center gap-2 flex-shrink-0">
+            {step === "idle" && (
+              <button
+                onClick={startConversation}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold text-xs hover:from-blue-700 hover:to-purple-700 transition-all whitespace-nowrap"
+              >
+                Call
+              </button>
+            )}
+
+            {step === "connecting" && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg font-bold text-xs flex-shrink-0 whitespace-nowrap">
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0s" }} />
+                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }} />
+                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }} />
+                </div>
+                Connecting...
+              </div>
+            )}
+
+            {step === "listening" && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg font-bold text-xs flex-shrink-0 whitespace-nowrap">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                Listening...
+              </div>
+            )}
+
+            {step === "generating" && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg font-bold text-xs flex-shrink-0 whitespace-nowrap">
+                <div className="w-2 h-2 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                Generating...
+              </div>
+            )}
+
+            {step === "done" && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg font-bold text-xs flex-shrink-0 whitespace-nowrap">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                Commence Voice Onboarding
-              </span>
-            </button>
-          )}
-
-          {step === "listening" && (
-            <div className="flex items-center gap-3 text-sm font-semibold text-primary backdrop-blur-md bg-primary/10 border border-primary/20 px-8 py-4 rounded-full shadow-[0_0_20px_rgba(var(--primary),0.1)] animate-pulse">
-              <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
-              Actively securely transmitting...
-            </div>
-          )}
-
-          {step === "generating" && (
-            <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground backdrop-blur-xl bg-secondary/80 border border-white/5 px-8 py-4 rounded-full shadow-lg">
-              <svg className="w-5 h-5 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Synthesizing your requirements...
-            </div>
-          )}
-
-          {step === "done" && (
-            <div className="text-success font-bold flex items-center gap-3 px-8 py-4 bg-success/10 border border-success/20 shadow-[0_0_30px_rgba(var(--success),0.2)] rounded-full transform transition-all duration-500 hover:scale-105">
-              <svg className="w-6 h-6 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Interview Ready! Redirecting instantly...
-            </div>
-          )}
+                Ready!
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

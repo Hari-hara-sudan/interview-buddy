@@ -117,7 +117,7 @@ const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 mt-6 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 shadow-md shadow-primary/20"
+              className="w-full h-11 mt-6 btn-gradient rounded-xl text-sm hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100"
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
@@ -138,7 +138,7 @@ const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsSignup(!isSignup)}
-                className="text-primary hover:text-primary/80 font-semibold hover:underline transition-all"
+                className="text-gradient font-semibold hover:opacity-80 hover:underline transition-all"
               >
                 {isSignup ? "Sign in" : "Create one now"}
               </button>

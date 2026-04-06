@@ -236,24 +236,55 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
     // Render Fullscreen Gate if not started
     if (!hasStarted) {
         return (
-            <div ref={containerRef} className="min-h-screen bg-background flex flex-col items-center justify-center text-foreground p-6">
-                <div className="max-w-xl text-center space-y-6">
-                    <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent-foreground tracking-tight drop-shadow-md">
-                        Programming Assessment
+            <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-50 flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors duration-500">
+                {/* Soft gradient orbs specifically for the fullscreen container */}
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+                    <div className="absolute top-[-10%] left-[10%] w-[55%] h-[55%] rounded-full bg-blue-300/20 blur-[120px]" />
+                    <div className="absolute bottom-[-5%] right-[5%] w-[45%] h-[45%] rounded-full bg-purple-300/20 blur-[100px]" />
+                    <div className="absolute top-[35%] left-[30%] w-[35%] h-[35%] rounded-full bg-indigo-200/15 blur-[90px]" />
+                </div>
+
+                <div className="max-w-lg text-center space-y-5 z-10 w-full pt-10">
+                    {/* Decorative icon */}
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center mx-auto shadow-lg">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                        </svg>
+                    </div>
+
+                    <h1 className="text-4xl md:text-5xl font-black tracking-tight text-gray-900">
+                        Programming{" "}
+                        <span className="animated-gradient-text">Assessment</span>
                     </h1>
-                    <p className="text-lg text-muted-foreground font-medium">
-                        This environment strictly monitors your logical reasoning and syntax via an AI Overseer.
-                        Entering will require Fullscreen mode to protect assessment integrity.
+
+                    <p className="text-base text-gray-500 font-medium leading-relaxed">
+                        This environment strictly monitors your logical reasoning and
+                        syntax via an AI Overseer. Entering will require Fullscreen mode to
+                        protect assessment integrity.
                     </p>
-                    <div className="pt-8">
+
+                    {/* Info pills */}
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
+                        {["AI Monitored", "Fullscreen Mode", "Voice AI Active"].map(tag => (
+                            <span key={tag} className="text-[11px] font-semibold px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
+
+                    <div className="pt-4">
                         <button
                             onClick={handleStartSession}
-                            className="bg-primary text-primary-foreground font-bold px-10 py-5 rounded-2xl shadow-[0_0_40px_rgba(var(--primary),0.4)] hover:scale-105 transition-all duration-300 text-xl"
+                            className="btn-gradient px-10 py-4 rounded-2xl text-base"
                         >
                             Start Assessment
                         </button>
                     </div>
-                    <button onClick={() => navigate("/")} className="mt-4 text-sm font-semibold text-muted-foreground hover:text-foreground underline">
+
+                    <button
+                        onClick={() => navigate("/")}
+                        className="text-sm text-gray-400 hover:text-gray-700 underline transition-colors"
+                    >
                         Return to Dashboard
                     </button>
                 </div>
@@ -262,75 +293,86 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
     }
 
     return (
-        <div ref={containerRef} className="h-screen bg-background flex flex-col p-6 max-w-[1920px] mx-auto text-foreground overflow-hidden">
-            <div className="flex items-center justify-between mb-6 animate-fade-in px-4 shrink-0">
+        <div ref={containerRef} className="h-screen bg-gradient-to-br from-blue-100 to-purple-50 flex flex-col p-5 max-w-[1920px] mx-auto overflow-hidden relative transition-colors duration-500">
+            {/* Soft gradient orbs specifically for the fullscreen container */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+                <div className="absolute top-[-10%] left-[10%] w-[55%] h-[55%] rounded-full bg-blue-300/20 blur-[120px]" />
+                <div className="absolute bottom-[-5%] right-[5%] w-[45%] h-[45%] rounded-full bg-purple-300/20 blur-[100px]" />
+                <div className="absolute top-[35%] left-[30%] w-[35%] h-[35%] rounded-full bg-indigo-200/15 blur-[90px]" />
+            </div>
+
+            <div className="flex items-center justify-between mb-4 px-2 shrink-0 z-10">
                 <div>
-                    <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent-foreground tracking-tight drop-shadow-md">
-                        Programming Environment
+                    <h1 className="text-xl font-black text-gray-900">
+                        Programming{" "}
+                        <span className="animated-gradient-text">Environment</span>
                     </h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-1 text-success flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-success animate-pulse block"></span> Live Overseer Active
+                    <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse block" />
+                        Live Overseer Active
                     </p>
                 </div>
-                <button onClick={handleExit} className="px-6 py-2 border border-border rounded-xl hover:bg-destructive hover:text-white hover:border-destructive font-semibold transition-all">
+                <button
+                    onClick={handleExit}
+                    className="px-4 py-2 text-sm font-semibold border border-gray-200 rounded-xl text-gray-600 bg-white/50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+                >
                     End Session
                 </button>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 animate-scale-in pb-4">
+            <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 animate-scale-in pb-4 z-10 w-full">
                 {/* Left Side: Agent Monitoring, Seed Questions & Constraints */}
-                <div className="w-full lg:w-1/3 flex flex-col min-h-0 h-full gap-6">
-                    <div className="bg-card border border-white/5 p-6 rounded-3xl glassmorphism shadow-2xl relative overflow-hidden group flex-1 flex flex-col min-h-0">
-                        <div className="absolute inset-0 bg-primary/10 blur-[100px] pointer-events-none -z-10 group-hover:bg-primary/20 transition-colors duration-1000"></div>
+                <div className="w-full lg:w-1/3 flex flex-col min-h-0 h-full">
+                    <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm relative overflow-hidden flex-1 flex flex-col min-h-0">
 
-                        {/* Visual Overseer */}
-                        <div className="flex items-center gap-6 pb-6 border-b border-white/10 dark:border-white/5 mb-6">
-                            <div className="relative group-hover:scale-105 transition-transform duration-700 w-16 h-16 shrink-0">
-                                <VoiceAvatar type="agent" isSpeaking={agentSpeaking} />
+                        {/* AI Overseer — compact inline status */}
+                        <div className="flex items-center gap-3 pb-3 border-b border-border/20 mb-3 shrink-0">
+                            <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 transition-all duration-500", agentSpeaking ? "border-primary bg-primary/20 shadow-[0_0_12px_rgba(var(--primary),0.4)]" : "border-border/40 bg-secondary/50")}>
+                                <svg className={cn("w-4 h-4 transition-colors", agentSpeaking ? "text-primary" : "text-muted-foreground")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                    <path d="M12 2a4 4 0 0 1 4 4v4a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4Z" />
+                                    <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                                </svg>
                             </div>
-                            <div>
-                                <span className="text-xs font-black tracking-[0.2em] uppercase text-primary block mb-1">
-                                    AI Overseer
-                                </span>
-                                <span className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-                                    <span className={cn("w-2 h-2 rounded-full", vapiConnected ? "bg-success animate-pulse" : "bg-destructive")}></span>
-                                    {vapiConnected ? "Live Listening..." : "Connecting Voice Engine..."}
+                            <div className="min-w-0 flex-1">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-primary block leading-tight">AI Overseer</span>
+                                <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+                                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", vapiConnected ? "bg-success animate-pulse" : "bg-destructive")}></span>
+                                    {vapiConnected ? "Live" : "Connecting..."}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Question Selector List */}
-                        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Select Challenge</h3>
-                        <div className="flex flex-col gap-3 mb-6">
+                        {/* Challenge Selector */}
+                        <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2.5 shrink-0">Select Challenge</h3>
+                        <div className="flex flex-col gap-2 mb-4 shrink-0">
                             {PROGRAMMING_QUESTIONS.map(q => (
                                 <button
                                     key={q.id}
                                     onClick={() => handleSwitchQuestion(q.id)}
                                     className={cn(
-                                        "px-4 py-3 rounded-xl border text-left font-medium transition-all flex items-center justify-between",
+                                        "px-3.5 py-2.5 rounded-xl border text-left text-sm font-medium transition-all flex items-center justify-between gap-2",
                                         q.id === activeQuestionId
-                                            ? "bg-primary text-primary-foreground border-primary shadow-md"
-                                            : "bg-black/10 dark:bg-white/5 border-white/5 hover:border-primary/40"
+                                            ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white border-transparent shadow-md"
+                                            : "bg-gray-50 border-gray-200 hover:border-blue-400 text-gray-600 hover:text-gray-900"
                                     )}
                                 >
                                     <span className="truncate">{q.title}</span>
-                                    <span className={cn("text-[10px] px-2 py-1 rounded-md uppercase font-bold tracking-wider", q.id === activeQuestionId ? "bg-black/20" : "bg-black/20 text-muted-foreground")}>{q.difficulty}</span>
+                                    <span className={cn("text-[10px] px-2 py-0.5 rounded-md uppercase font-bold tracking-wider shrink-0", q.id === activeQuestionId ? "bg-white/20 text-white" : "bg-gray-200 text-gray-500")}>{q.difficulty}</span>
                                 </button>
                             ))}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
-                            <h2 className="text-lg font-bold mb-3 flex items-center justify-between">
-                                Active Constraint
-                            </h2>
-                            <div className="text-sm text-muted-foreground font-medium leading-relaxed bg-black/10 dark:bg-white/5 p-5 rounded-2xl border border-white/5 mb-4">
+                        {/* Scrollable Constraint + Test Cases */}
+                        <div className="flex-1 overflow-y-auto min-h-0 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-border/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            <h2 className="text-sm font-bold mb-2 text-foreground">Active Constraint</h2>
+                            <div className="text-sm text-muted-foreground font-medium leading-relaxed bg-secondary/50 p-4 rounded-xl border border-border/30 mb-4">
                                 <p>{activeQuestion.description}</p>
                             </div>
 
-                            <h2 className="text-lg font-bold mb-3">Test Cases</h2>
-                            <div className="space-y-3">
+                            <h2 className="text-sm font-bold mb-2 text-foreground">Test Cases</h2>
+                            <div className="space-y-2">
                                 {activeQuestion.testCases.map((tc, i) => (
-                                    <div key={i} className="bg-black/10 dark:bg-white/5 border border-white/5 rounded-xl p-4 text-xs font-mono text-muted-foreground break-all">
+                                    <div key={i} className="bg-secondary/50 border border-border/30 rounded-xl p-3 text-xs font-mono text-muted-foreground break-all">
                                         <div className="mb-1"><span className="font-bold text-foreground">Input:</span> {tc.input}</div>
                                         <div><span className="font-bold text-primary">Output:</span> {tc.expected}</div>
                                     </div>
@@ -340,9 +382,9 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
                     </div>
                 </div>
 
-                {/* Right Side: Code Editor & AI Feedback Console */}
-                <div className="w-full lg:w-2/3 flex flex-col gap-6">
-                    <div className="flex-1 bg-white/95 border border-white/20 dark:border-white/5 rounded-3xl overflow-hidden glassmorphism shadow-2xl flex flex-col group relative">
+                {/* Right Side: Code Editor */}
+                <div className="w-full lg:w-2/3 flex flex-col gap-4">
+                    <div className="flex-1 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
                         <div className="px-6 py-4 border-b border-border/50 bg-black/5 dark:bg-black/10 flex items-center justify-between shrink-0 backdrop-blur-md z-10">
                             <div className="flex items-center gap-3">
                                 <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
