@@ -146,42 +146,7 @@ function JobCard({ job }: { job: AdzunaJob }) {
 }
 
 // Fallback dummy data if no API keys are provided
-const DUMMY_JOBS: AdzunaJob[] = [
-  {
-    id: "1",
-    title: "Frontend React Developer",
-    company: { display_name: "TechNova Solutions" },
-    location: { display_name: "Remote / India-based" },
-    description: "We are looking for a skilled React developer with experience in TypeScript to join our dynamic product design team.",
-    redirect_url: "#",
-    created: new Date().toISOString(),
-    salary_min: 600000,
-    salary_max: 1200000,
-    contract_type: "permanent"
-  },
-  {
-    id: "2",
-    title: "Senior Backend Engineer (Node.js)",
-    company: { display_name: "CloudShift Cloud Services" },
-    location: { display_name: "Bangalore, India" },
-    description: "Join our backend platform team to build scalable microservices using Node.js and AWS. Must have 5+ years of experience.",
-    redirect_url: "#",
-    created: new Date(Date.now() - 86400000).toISOString(),
-    salary_min: 1200000,
-    salary_max: 2400000,
-    contract_type: "permanent"
-  },
-  {
-    id: "3",
-    title: "Full Stack Developer",
-    company: { display_name: "Innovate AI" },
-    location: { display_name: "London, UK" },
-    description: "Startup seeking a generalist full-stack dev comfortable with React and Python. We offer strong equity packages.",
-    redirect_url: "#",
-    created: new Date(Date.now() - 172800000).toISOString(),
-    contract_type: "contract"
-  }
-];
+const DUMMY_JOBS: AdzunaJob[] = [];
 
 export default function JobsPage() {
   const [searchTerm, setSearchTerm] = useState("Software Developer");
@@ -205,39 +170,7 @@ export default function JobsPage() {
     const appKey = import.meta.env.VITE_ADZUNA_APP_KEY;
 
     if (!appId || !appKey) {
-      console.warn("No Adzuna API keys found in .env. Returning placeholder data.");
-      let filtered = DUMMY_JOBS;
-      
-      // Apply filters to dummy data
-      if (minSalary) {
-        filtered = filtered.filter(j => (j.salary_min || 0) >= minSalary);
-      }
-      if (maxSalary) {
-        filtered = filtered.filter(j => (j.salary_max || Infinity) <= maxSalary);
-      }
-      if (contractType) {
-        filtered = filtered.filter(j => j.contract_type === contractType);
-      }
-      if (daysPosted) {
-        const now = new Date();
-        filtered = filtered.filter(j => {
-          const jobDate = new Date(j.created);
-          const daysDiff = (now.getTime() - jobDate.getTime()) / (1000 * 60 * 60 * 24);
-          return daysDiff <= daysPosted;
-        });
-      }
-      
-      // Apply sorting
-      const sortedFiltered = [...filtered];
-      if (sortBy === "salary_asc") {
-        sortedFiltered.sort((a, b) => (a.salary_min || 0) - (b.salary_min || 0));
-      } else if (sortBy === "salary_desc") {
-        sortedFiltered.sort((a, b) => (b.salary_max || 0) - (a.salary_max || 0));
-      } else if (sortBy === "recent") {
-        sortedFiltered.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
-      }
-      
-      return sortedFiltered;
+      throw new Error("Adzuna API keys not configured. Please add VITE_ADZUNA_APP_ID and VITE_ADZUNA_APP_KEY to your .env file.");
     }
 
     const encodeSearch = encodeURIComponent(queryTerm);
@@ -272,12 +205,14 @@ export default function JobsPage() {
     }
     
     // Apply sorting
-    if (sortBy === "salary_asc") {
-      results.sort((a, b) => (a.salary_min || 0) - (b.salary_min || 0));
-    } else if (sortBy === "salary_desc") {
-      results.sort((a, b) => (b.salary_max || 0) - (a.salary_max || 0));
-    } else if (sortBy === "recent") {
-      results.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+    if (results.length > 0) {
+      if (sortBy === "salary_asc") {
+        results.sort((a, b) => (a.salary_min || 0) - (b.salary_min || 0));
+      } else if (sortBy === "salary_desc") {
+        results.sort((a, b) => (b.salary_max || 0) - (a.salary_max || 0));
+      } else if (sortBy === "recent") {
+        results.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+      }
     }
     
     setTotalResults(results.length);
@@ -471,10 +406,10 @@ export default function JobsPage() {
           )}
 
           {(!import.meta.env.VITE_ADZUNA_APP_ID || !import.meta.env.VITE_ADZUNA_APP_KEY) && (
-            <div className="mt-4 px-4 py-2 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-              <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <p className="text-xs text-amber-800 font-medium leading-relaxed">
-                You are currently viewing placeholder data. To get live job listings, sign up at Adzuna and add <span className="font-bold bg-amber-100 px-1 rounded">VITE_ADZUNA_APP_ID</span> and <span className="font-bold bg-amber-100 px-1 rounded">VITE_ADZUNA_APP_KEY</span> to your <code className="font-mono bg-amber-100 px-1 rounded">.env</code> file.
+            <div className="mt-4 px-4 py-2 bg-red-50 rounded-xl border border-red-200 flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <p className="text-xs text-red-800 font-medium leading-relaxed">
+                ⚠️ API Keys Required: To view live job listings, you must sign up at <a href="https://www.adzuna.com/api" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-red-900">Adzuna API</a> and add <span className="font-bold bg-red-100 px-1 rounded">VITE_ADZUNA_APP_ID</span> and <span className="font-bold bg-red-100 px-1 rounded">VITE_ADZUNA_APP_KEY</span> to your <code className="font-mono bg-red-100 px-1 rounded">.env</code> file.
               </p>
             </div>
           )}
