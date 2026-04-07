@@ -129,7 +129,7 @@ function JobCard({ job }: { job: AdzunaJob }) {
 
       <div className="mt-5 pt-4 z-10 flex items-center justify-between">
         <div className="text-xs font-bold text-gray-900">
-           {job.salary_min ? `$${job.salary_min.toLocaleString()} - $${job.salary_max?.toLocaleString()}` : <span className="text-gray-400 font-medium">Salary Unknown</span>}
+           {job.salary_min ? `₹${job.salary_min.toLocaleString('en-IN')} - ₹${job.salary_max?.toLocaleString('en-IN')}` : <span className="text-gray-400 font-medium">Salary Unknown</span>}
         </div>
 
         <a 
@@ -151,24 +151,24 @@ const DUMMY_JOBS: AdzunaJob[] = [
     id: "1",
     title: "Frontend React Developer",
     company: { display_name: "TechNova Solutions" },
-    location: { display_name: "Remote / US-based" },
+    location: { display_name: "Remote / India-based" },
     description: "We are looking for a skilled React developer with experience in TypeScript to join our dynamic product design team.",
     redirect_url: "#",
     created: new Date().toISOString(),
-    salary_min: 80000,
-    salary_max: 120000,
+    salary_min: 600000,
+    salary_max: 1200000,
     contract_type: "permanent"
   },
   {
     id: "2",
     title: "Senior Backend Engineer (Node.js)",
     company: { display_name: "CloudShift Cloud Services" },
-    location: { display_name: "New York, USA" },
+    location: { display_name: "Bangalore, India" },
     description: "Join our backend platform team to build scalable microservices using Node.js and AWS. Must have 5+ years of experience.",
     redirect_url: "#",
     created: new Date(Date.now() - 86400000).toISOString(),
-    salary_min: 130000,
-    salary_max: 160000,
+    salary_min: 1200000,
+    salary_max: 2400000,
     contract_type: "permanent"
   },
   {
@@ -189,6 +189,15 @@ export default function JobsPage() {
   const [country, setCountry] = useState("in"); // default india
   const [currentPage, setCurrentPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // Advanced filter states
+  const [minSalary, setMinSalary] = useState<number | null>(null);
+  const [maxSalary, setMaxSalary] = useState<number | null>(null);
+  const [contractType, setContractType] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"relevance" | "salary_asc" | "salary_desc" | "recent">("relevance");
+  const [daysPosted, setDaysPosted] = useState<number | null>(null);
+  
   const resultsPerPage = 30; // Increased from 15 to 30 for better browsing
 
   const loadJobs = async () => {
@@ -197,7 +206,38 @@ export default function JobsPage() {
 
     if (!appId || !appKey) {
       console.warn("No Adzuna API keys found in .env. Returning placeholder data.");
-      return DUMMY_JOBS;
+      let filtered = DUMMY_JOBS;
+      
+      // Apply filters to dummy data
+      if (minSalary) {
+        filtered = filtered.filter(j => (j.salary_min || 0) >= minSalary);
+      }
+      if (maxSalary) {
+        filtered = filtered.filter(j => (j.salary_max || Infinity) <= maxSalary);
+      }
+      if (contractType) {
+        filtered = filtered.filter(j => j.contract_type === contractType);
+      }
+      if (daysPosted) {
+        const now = new Date();
+        filtered = filtered.filter(j => {
+          const jobDate = new Date(j.created);
+          const daysDiff = (now.getTime() - jobDate.getTime()) / (1000 * 60 * 60 * 24);
+          return daysDiff <= daysPosted;
+        });
+      }
+      
+      // Apply sorting
+      const sortedFiltered = [...filtered];
+      if (sortBy === "salary_asc") {
+        sortedFiltered.sort((a, b) => (a.salary_min || 0) - (b.salary_min || 0));
+      } else if (sortBy === "salary_desc") {
+        sortedFiltered.sort((a, b) => (b.salary_max || 0) - (a.salary_max || 0));
+      } else if (sortBy === "recent") {
+        sortedFiltered.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+      }
+      
+      return sortedFiltered;
     }
 
     const encodeSearch = encodeURIComponent(queryTerm);
@@ -209,12 +249,43 @@ export default function JobsPage() {
       throw new Error("Failed to fetch jobs");
     }
     const data = await response.json();
-    setTotalResults(data.count || 0);
-    return data.results as AdzunaJob[];
+    
+    // Apply client-side filtering and sorting
+    let results = (data.results || []) as AdzunaJob[];
+    
+    if (minSalary) {
+      results = results.filter(j => (j.salary_min || 0) >= minSalary);
+    }
+    if (maxSalary) {
+      results = results.filter(j => (j.salary_max || Infinity) <= maxSalary);
+    }
+    if (contractType) {
+      results = results.filter(j => j.contract_type === contractType);
+    }
+    if (daysPosted) {
+      const now = new Date();
+      results = results.filter(j => {
+        const jobDate = new Date(j.created);
+        const daysDiff = (now.getTime() - jobDate.getTime()) / (1000 * 60 * 60 * 24);
+        return daysDiff <= daysPosted;
+      });
+    }
+    
+    // Apply sorting
+    if (sortBy === "salary_asc") {
+      results.sort((a, b) => (a.salary_min || 0) - (b.salary_min || 0));
+    } else if (sortBy === "salary_desc") {
+      results.sort((a, b) => (b.salary_max || 0) - (a.salary_max || 0));
+    } else if (sortBy === "recent") {
+      results.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+    }
+    
+    setTotalResults(results.length);
+    return results;
   };
 
   const { data: jobs, isLoading, isError, error } = useQuery({
-    queryKey: ["jobs", queryTerm, country, currentPage],
+    queryKey: ["jobs", queryTerm, country, currentPage, minSalary, maxSalary, contractType, sortBy, daysPosted],
     queryFn: loadJobs,
   });
 
@@ -247,7 +318,8 @@ export default function JobsPage() {
         </div>
 
         {/* Search Bar & Filters */}
-        <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm glassmorphism">
+        <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm glassmorphism space-y-4">
+          {/* Primary Search & Location */}
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-3">
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
@@ -273,7 +345,7 @@ export default function JobsPage() {
               </div>
               <select 
                 value={country}
-                onChange={(e) => setCountry(e.target.value)}
+                onChange={(e) => { setCountry(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-11 pr-8 py-3 rounded-2xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 transition-shadow outline-none text-gray-800 font-medium appearance-none"
               >
                 <option value="in">India</option>
@@ -284,10 +356,119 @@ export default function JobsPage() {
               </select>
             </div>
 
-            <button type="submit" className="btn-gradient px-8 py-3 rounded-2xl md:w-auto w-full string">
-              Search Jobs
+            <button type="submit" className="btn-gradient px-8 py-3 rounded-2xl md:w-auto w-full">
+              Search
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="px-6 py-3 rounded-2xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-all flex items-center gap-2 md:w-auto w-full justify-center"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              Filters
             </button>
           </form>
+
+          {/* Advanced Filters */}
+          {showAdvancedFilters && (
+            <div className="pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+              {/* Sort By */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Sort By</label>
+                <select 
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-800 font-medium text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                >
+                  <option value="relevance">Most Relevant</option>
+                  <option value="recent">Most Recent</option>
+                  <option value="salary_desc">Highest Salary</option>
+                  <option value="salary_asc">Lowest Salary</option>
+                </select>
+              </div>
+
+              {/* Job Type */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Job Type</label>
+                <select 
+                  value={contractType}
+                  onChange={(e) => { setContractType(e.target.value); setCurrentPage(1); }}
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-800 font-medium text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                >
+                  <option value="">All Types</option>
+                  <option value="permanent">Permanent</option>
+                  <option value="contract">Contract</option>
+                  <option value="temporary">Temporary</option>
+                  <option value="part_time">Part-time</option>
+                </select>
+              </div>
+
+              {/* Min Salary */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Min Salary (₹)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 font-semibold text-sm">₹</span>
+                  <input 
+                    type="number" 
+                    placeholder="Any"
+                    value={minSalary || ""}
+                    onChange={(e) => { setMinSalary(e.target.value ? parseInt(e.target.value) : null); setCurrentPage(1); }}
+                    className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-800 font-medium text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Max Salary */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Max Salary (₹)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 font-semibold text-sm">₹</span>
+                  <input 
+                    type="number" 
+                    placeholder="Any"
+                    value={maxSalary || ""}
+                    onChange={(e) => { setMaxSalary(e.target.value ? parseInt(e.target.value) : null); setCurrentPage(1); }}
+                    className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-800 font-medium text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Posted Within */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Posted Within</label>
+                <select 
+                  value={daysPosted || ""}
+                  onChange={(e) => { setDaysPosted(e.target.value ? parseInt(e.target.value) : null); setCurrentPage(1); }}
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-800 font-medium text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                >
+                  <option value="">Any Time</option>
+                  <option value="7">Last 7 Days</option>
+                  <option value="14">Last 14 Days</option>
+                  <option value="30">Last 30 Days</option>
+                </select>
+              </div>
+
+              {/* Clear Filters Button */}
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setMinSalary(null);
+                    setMaxSalary(null);
+                    setContractType("");
+                    setSortBy("relevance");
+                    setDaysPosted(null);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-4 py-2.5 rounded-lg bg-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-300 transition-all"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          )}
 
           {(!import.meta.env.VITE_ADZUNA_APP_ID || !import.meta.env.VITE_ADZUNA_APP_KEY) && (
             <div className="mt-4 px-4 py-2 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
