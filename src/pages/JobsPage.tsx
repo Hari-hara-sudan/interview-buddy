@@ -42,9 +42,9 @@ const COMPANY_LOGO_MAP: Record<string, string> = {
 };
 
 // Get company logo URL with multiple fallback services
-const getCompanyLogoUrl = (redirectUrl: string, companyName: string): string => {
+const getCompanyLogoUrl = (redirectUrl: string, companyName?: string): string => {
   const domain = extractDomain(redirectUrl);
-  const normalizedName = companyName.toLowerCase().trim();
+  const normalizedName = (companyName || 'company').toLowerCase().trim();
   
   // Check if we have a mapping for this company
   for (const [key, logoUrl] of Object.entries(COMPANY_LOGO_MAP)) {
@@ -60,7 +60,7 @@ const getCompanyLogoUrl = (redirectUrl: string, companyName: string): string => 
   }
   
   // Secondary: Try Clearbit with company name (free tier, no auth)
-  const slugifiedName = companyName
+  const slugifiedName = (companyName || 'company')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
@@ -71,7 +71,8 @@ const getCompanyLogoUrl = (redirectUrl: string, companyName: string): string => 
 function JobCard({ job }: { job: AdzunaJob }) {
   const [logoError, setLogoError] = useState(false);
   const isRecent = (new Date().getTime() - new Date(job.created).getTime()) < (3 * 24 * 60 * 60 * 1000); // within 3 days
-  const logoUrl = getCompanyLogoUrl(job.redirect_url, job.company.display_name);
+  const companyName = job.company?.display_name || 'Company';
+  const logoUrl = getCompanyLogoUrl(job.redirect_url, companyName);
   
   return (
     <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.06)] hover:-translate-y-1 transition-all duration-300 flex flex-col relative overflow-hidden group">
@@ -83,13 +84,13 @@ function JobCard({ job }: { job: AdzunaJob }) {
           {logoError ? (
             // Fallback: Show company initials
             <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-600 uppercase">
-              {job.company.display_name.charAt(0)}{job.company.display_name.charAt(1) || ""}
+              {companyName.charAt(0)}{companyName.charAt(1) || ""}
             </span>
           ) : (
             // Real logo from service
             <img 
               src={logoUrl} 
-              alt={job.company.display_name}
+              alt={companyName}
               onError={() => setLogoError(true)}
               className="w-full h-full object-cover"
             />
@@ -107,7 +108,7 @@ function JobCard({ job }: { job: AdzunaJob }) {
           {job.title}
         </h3>
         <p className="text-sm font-semibold text-gray-500 mt-1 truncate">
-          {job.company.display_name}
+          {companyName}
         </p>
         
         <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -163,7 +164,7 @@ export default function JobsPage() {
   const [sortBy, setSortBy] = useState<"relevance" | "salary_asc" | "salary_desc" | "recent">("relevance");
   const [daysPosted, setDaysPosted] = useState<number | null>(null);
   
-  const resultsPerPage = 30; // Increased from 15 to 30 for better browsing
+  const resultsPerPage = 50; // Adzuna API maximum per page
 
   const loadJobs = async () => {
     const appId = import.meta.env.VITE_ADZUNA_APP_ID;
@@ -174,8 +175,9 @@ export default function JobsPage() {
     }
 
     const encodeSearch = encodeURIComponent(queryTerm);
+    // Use Vite dev server proxy instead of CORS proxy
     const response = await fetch(
-      `https://api.adzuna.com/v1/api/jobs/${country}/search/${currentPage}?app_id=${appId}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${encodeSearch}&content-type=application/json`
+      `/api/adzuna/in/search/${currentPage}?app_id=${appId}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${encodeSearch}&content-type=application/json`
     );
 
     if (!response.ok) {
@@ -215,7 +217,8 @@ export default function JobsPage() {
       }
     }
     
-    setTotalResults(results.length);
+    // Set total results from API count (total available jobs)
+    setTotalResults(data.count || 0);
     return results;
   };
 

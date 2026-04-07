@@ -13,34 +13,64 @@ export default function JobMarketStats() {
   const navigate = useNavigate();
 
   const fetchStats = async () => {
-    // Note: Adzuna API blocks direct browser requests (CORS policy).
-    // To fix the red console errors completely without a backend proxy, 
-    // we bypass the fetch and instantly return realistic mock data.
-    
-    // Simulate slight network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const appId = import.meta.env.VITE_ADZUNA_APP_ID;
+    const appKey = import.meta.env.VITE_ADZUNA_APP_KEY;
 
-    return {
-      total: 125430,
-      sectors: SECTORS.map(s => ({
-        ...s,
-        count: Math.floor(Math.random() * 30000) + 10000
-      }))
-    };
+    if (!appId || !appKey) {
+      console.warn("Adzuna API keys not found. Job market stats unavailable.");
+      throw new Error("API keys required");
+    }
+
+    try {
+      // Use Vite dev server proxy to bypass CORS restrictions
+      // Fetch total jobs for all positions
+      const totalResponse = await fetch(
+        `/api/adzuna/in/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=1&content-type=application/json`
+      );
+      
+      if (!totalResponse.ok) throw new Error("Failed to fetch total jobs");
+      const totalData = await totalResponse.json();
+      const total = totalData.count || 0;
+
+      // Fetch sector-specific data in parallel
+      const sectorPromises = SECTORS.map(async (sector) => {
+        try {
+          const response = await fetch(
+            `/api/adzuna/in/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=1&what=${encodeURIComponent(sector.term)}&content-type=application/json`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            return { ...sector, count: data.count || 0 };
+          }
+          return { ...sector, count: 0 };
+        } catch (err) {
+          console.error(`Failed to fetch ${sector.term} jobs:`, err);
+          return { ...sector, count: 0 };
+        }
+      });
+
+      const sectors = await Promise.all(sectorPromises);
+      
+      return { total, sectors };
+    } catch (err) {
+      console.error("Failed to fetch job market stats:", err);
+      throw err;
+    }
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["jobMarketStats"],
     queryFn: fetchStats,
-    retry: false, // Don't retry failed requests (prevents them from firing during interviews)
-    staleTime: Infinity, // Never mark as stale to prevent unwanted background refetches
-    refetchInterval: 1000 * 60 * 10, // Fetch periodically exactly every 10 minutes
-    refetchOnWindowFocus: false, // Prevent refetching when alt-tabbing back to the browser
-    refetchOnMount: false, // Prevent refetching when navigating back to the page
-    refetchOnReconnect: false, // Prevent refetching when network reconnects
+    retry: false,
+    staleTime: 1000 * 60 * 30, // Cache for 30 minutes
+    refetchInterval: 1000 * 60 * 30, // Refetch every 30 minutes
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="mb-10 w-full rounded-3xl bg-white border border-gray-100 p-6 flex flex-col gap-4 shadow-sm animate-pulse">
         <div className="h-6 w-48 bg-gray-200 rounded-lg"></div>
@@ -50,6 +80,28 @@ export default function JobMarketStats() {
           <div className="h-24 bg-gray-100 rounded-2xl"></div>
           <div className="h-24 bg-gray-100 rounded-2xl"></div>
           <div className="h-24 bg-gray-100 rounded-2xl"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="mb-10 w-full rounded-3xl bg-amber-50 border border-amber-200 p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div>
+            <p className="text-sm font-bold text-amber-900">Job Market Stats Unavailable</p>
+            <p className="text-xs text-amber-800 mt-1">Add your Adzuna API keys to .env to see live job market statistics</p>
+            <button
+              onClick={() => navigate('/jobs')}
+              className="mt-3 text-xs font-bold text-amber-700 hover:text-amber-800 underline"
+            >
+              View Jobs Board →
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -68,6 +120,10 @@ export default function JobMarketStats() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
             Live Market Trends (India)
+            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-200 rounded-full">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-xs font-bold text-green-700">Real-time</span>
+            </span>
           </h2>
           <button 
             onClick={() => navigate('/jobs')}

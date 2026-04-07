@@ -6,6 +6,7 @@ import { useAssessments } from "@/contexts/AssessmentContext";
 import InterviewCard from "@/components/InterviewCard";
 import AssessmentCard from "@/components/AssessmentCard";
 import JobMarketStats from "@/components/JobMarketStats";
+import ResumeAssessmentStats from "@/components/ResumeAssessmentStats";
 
 const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -106,6 +107,11 @@ const HomePage: React.FC = () => {
                 {assessments.map((assessment) => (
                   <AssessmentCard key={assessment.id} assessment={assessment} />
                 ))}
+              </div>
+
+              {/* Assessment Stats */}
+              <div className="mt-8 pt-4 border-t border-gray-200">
+                <ResumeAssessmentStats />
               </div>
             </>
           )}

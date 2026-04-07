@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import JobMarketStats from "@/components/JobMarketStats";
+import ResumeAssessmentStats from "@/components/ResumeAssessmentStats";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
@@ -940,6 +941,9 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
                 </h1>
                 <p className="text-muted-foreground mt-2">Here's how {parsedResume?.name} performed</p>
             </div>
+
+            {/* Resume Assessment Stats Overview */}
+            <ResumeAssessmentStats />
 
             {/* Score Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
