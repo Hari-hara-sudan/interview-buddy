@@ -16,6 +16,11 @@ import InterviewPage from "@/pages/InterviewPage";
 import FeedbackPage from "@/pages/FeedbackPage";
 import ProfilePage from "@/pages/ProfilePage";
 import NotFound from "@/pages/NotFound";
+import LinkedInCallbackPage from "@/pages/LinkedInCallbackPage";
+import AptitudePage from "@/pages/AptitudePage";
+import ProgrammingPage from "@/pages/ProgrammingPage";
+import ResumeAssessmentPage from "@/pages/ResumeAssessmentPage";
+import JobsPage from "@/pages/JobsPage";
 
 const queryClient = new QueryClient();
 
@@ -24,11 +29,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
-
-import AptitudePage from "@/pages/AptitudePage";
-import ProgrammingPage from "@/pages/ProgrammingPage";
-import ResumeAssessmentPage from "@/pages/ResumeAssessmentPage";
-import JobsPage from "@/pages/JobsPage";
 
 const AppRoutes = () => {
   const { isAuthenticated } = useAuth();
@@ -47,6 +47,7 @@ const AppRoutes = () => {
         <main className="flex-1 overflow-y-auto">
           <Routes>
             <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+            <Route path="/auth/linkedin/callback" element={<LinkedInCallbackPage />} />
             <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
             <Route path="/generate" element={<ProtectedRoute><GenerateInterviewPage /></ProtectedRoute>} />
             <Route path="/interview/:id" element={<ProtectedRoute><InterviewPage /></ProtectedRoute>} />
