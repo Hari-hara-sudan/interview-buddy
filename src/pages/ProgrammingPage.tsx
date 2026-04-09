@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import MonacoEditor from "@monaco-editor/react";
 import VoiceAvatar from "@/components/VoiceAvatar";
 import { genAI } from "@/lib/gemini";
-import { groq } from "@/lib/groq";
+import { openai } from "@/lib/openai";
 import { cn } from "@/lib/utils";
 import { detectTypo, resetTypoTracking } from "@/lib/typoDetector";
 import vapi from "@/lib/vapi";
@@ -193,11 +193,11 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
                 const result = await model.generateContent(prompt);
                 responseText = result.response.text().trim();
             } catch (geminiErr) {
-                console.warn("⚠️ Gemini analysis failed, trying Groq fallback...", geminiErr);
+                console.warn("⚠️ Gemini analysis failed, trying OpenAI fallback...", geminiErr);
                 
-                // Fallback to Groq
-                const groqResponse = await groq.chat.completions.create({
-                    model: "llama-3.1-70b-versatile",
+                // Fallback to OpenAI
+                const openaiResponse = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
                     messages: [
                         {
                             role: "user",
@@ -208,7 +208,7 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
                     max_tokens: 256
                 });
                 
-                responseText = groqResponse.choices[0]?.message?.content?.trim() || "";
+                responseText = openaiResponse.choices[0]?.message?.content?.trim() || "";
             }
 
             if (responseText && responseText !== "SILENT" && !responseText.includes("SILENT") && responseText.length > 5) {

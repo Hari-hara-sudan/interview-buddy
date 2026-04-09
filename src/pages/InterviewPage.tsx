@@ -5,7 +5,7 @@ import TranscriberBar from "@/components/TranscriberBar";
 import { useInterviews } from "@/contexts/InterviewContext";
 import vapi, { VAPI_ASSISTANT_ID_INTERVIEW } from "@/lib/vapi";
 import { genAI } from "@/lib/gemini";
-import { groq } from "@/lib/groq";
+import { openai } from "@/lib/openai";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "idle" | "connecting" | "listening" | "evaluating" | "done";
@@ -77,10 +77,10 @@ Return JSON strictly in this format without markdown code blocks: { "score": <0-
           console.log("✅ Gemini evaluation succeeded");
         } catch (geminiErr) {
           console.warn("⚠️ Gemini evaluation failed, trying Groq fallback...", geminiErr);
-          setTranscript("Using Groq for evaluation...");
+          setTranscript("Using OpenAI for evaluation...");
           
-          const groqResponse = await groq.chat.completions.create({
-            model: "llama-3.1-70b-versatile",
+          const openaiResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
             messages: [
               {
                 role: "user",
@@ -91,8 +91,8 @@ Return JSON strictly in this format without markdown code blocks: { "score": <0-
             max_tokens: 1024
           });
           
-          responseText = groqResponse.choices[0]?.message?.content || "";
-          console.log("✅ Groq evaluation succeeded");
+          responseText = openaiResponse.choices[0]?.message?.content || "";
+          console.log("✅ OpenAI evaluation succeeded");
         }
         
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);

@@ -5,7 +5,7 @@ import TranscriberBar from "@/components/TranscriberBar";
 import { useInterviews, type Interview, type InterviewType } from "@/contexts/InterviewContext";
 import vapi, { VAPI_ASSISTANT_ID_ONBOARDING } from "@/lib/vapi";
 import { genAI } from "@/lib/gemini";
-import { groq } from "@/lib/groq";
+import { openai } from "@/lib/openai";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "idle" | "connecting" | "listening" | "generating" | "done";
@@ -118,12 +118,12 @@ Return purely a JSON object structured exactly like this:
           responseText = result.response.text();
           console.log("✅ Gemini succeeded");
         } catch (geminiErr) {
-          console.warn("⚠️ Gemini failed, trying Groq fallback...", geminiErr);
-          setTranscript("Gemini overloaded, using Groq...");
+          console.warn("⚠️ Gemini failed, trying OpenAI fallback...", geminiErr);
+          setTranscript("Gemini overloaded, using OpenAI...");
           
-          // Fallback to Groq
-          const groqResponse = await groq.chat.completions.create({
-            model: "llama-3.1-70b-versatile",
+          // Fallback to OpenAI
+          const openaiResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
             messages: [
               {
                 role: "user",
@@ -134,8 +134,8 @@ Return purely a JSON object structured exactly like this:
             max_tokens: 1024
           });
           
-          responseText = groqResponse.choices[0]?.message?.content || "";
-          console.log("✅ Groq generation succeeded");
+          responseText = openaiResponse.choices[0]?.message?.content || "";
+          console.log("✅ OpenAI generation succeeded");
         }
 
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
