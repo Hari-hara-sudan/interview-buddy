@@ -145,6 +145,21 @@ const Sidebar: React.FC = () => {
           {!collapsed && <span className="text-xs font-medium">{theme === "light" ? "Dark mode" : "Light mode"}</span>}
         </button>
 
+        {/* Learning Portal */}
+        <button
+          onClick={() => window.location.href = "http://localhost:5173"}
+          title={collapsed ? "Learning Portal" : undefined}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors",
+            collapsed && "justify-center"
+          )}
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z" />
+          </svg>
+          {!collapsed && <span className="text-xs font-medium">Learning Portal</span>}
+        </button>
+
         {/* User info */}
         {!collapsed && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50">
