@@ -4,6 +4,7 @@ import MonacoEditor from "@monaco-editor/react";
 import VoiceAvatar from "@/components/VoiceAvatar";
 import { genAI } from "@/lib/gemini";
 import { openai } from "@/lib/openai";
+import { executeCode } from "@/lib/piston";
 import { cn } from "@/lib/utils";
 import { detectTypo, resetTypoTracking } from "@/lib/typoDetector";
 import vapi from "@/lib/vapi";
@@ -69,6 +70,11 @@ export default function ProgrammingPage() {
     const [code, setCode] = useState(activeQuestion.defaultCode[language]);
     const [agentSpeaking, setAgentSpeaking] = useState(false);
     const [vapiConnected, setVapiConnected] = useState(false);
+    
+    // Test execution state
+    const [testRunning, setTestRunning] = useState(false);
+    const [testResults, setTestResults] = useState<any>(null);
+    
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const previousCodeRef = useRef<string>(activeQuestion.defaultCode[language]);
 
@@ -218,6 +224,58 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
             }
         } catch (err) {
             console.error("Background AI evaluation error", err);
+        }
+    };
+
+    // ── Run Tests with Piston Compiler ─────────────────────────────────
+    const runTests = async () => {
+        if (!code || !activeQuestion.testCases.length) return;
+        
+        setTestRunning(true);
+        setTestResults(null);
+        
+        try {
+            const result = await executeCode(
+                language,
+                code,
+                activeQuestion.testCases
+            );
+            
+            console.log("✅ Test Results:", result);
+            setTestResults(result);
+            
+            // Provide voice feedback if connected
+            if (vapiConnected && hasStarted) {
+                const passed = result.passed;
+                const total = result.total;
+                const message = passed === total 
+                    ? `Excellent! All ${total} tests passed! 🎉`
+                    : `Your code passed ${passed} out of ${total} tests. Keep working!`;
+                try {
+                    // @ts-ignore
+                    vapi.say(message);
+                } catch (e) {
+                    console.error("Vapi say error", e);
+                }
+            }
+        } catch (err: any) {
+            console.error("❌ Test execution error:", err);
+            setTestResults({
+                status: "error",
+                stdout: "",
+                stderr: err.message || "Failed to execute code",
+                code: 1,
+                passed: 0,
+                total: activeQuestion.testCases.length,
+                testResults: activeQuestion.testCases.map(tc => ({
+                    input: tc.input,
+                    expected: tc.expected,
+                    actual: "ERROR",
+                    passed: false
+                }))
+            });
+        } finally {
+            setTestRunning(false);
         }
     };
 
@@ -466,9 +524,81 @@ If their code is fine, or incomplete but correct so far, reply EXACTLY with "SIL
                                 }}
                             />
                         </div>
+                        
+                        {/* Run Tests Button & Results */}
+                        <div className="px-6 py-4 border-t border-border/50 bg-black/5 dark:bg-black/10 flex flex-col gap-4">
+                            <button
+                                onClick={runTests}
+                                disabled={testRunning || !code}
+                                className="self-start bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                            >
+                                {testRunning ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        Running Tests...
+                                    </>
+                                ) : (
+                                    <>
+                                        ▶ Run Tests
+                                    </>
+                                )}
+                            </button>
+                            
+                            {testResults && (
+                                <div className={cn(
+                                    "w-full p-4 rounded-lg font-mono text-[13px] border",
+                                    testResults.status === "error" ? "bg-red-50 border-red-200" :
+                                    testResults.passed === testResults.total && testResults.total > 0 ? "bg-green-50 border-green-200" :
+                                    "bg-orange-50 border-orange-200"
+                                )}>
+                                    {/* Summary */}
+                                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-current/10">
+                                        <span className="text-[11px] uppercase font-bold tracking-widest opacity-70">
+                                            {testResults.status === "error" ? "❌ Error" : "📊 Test Results"}
+                                        </span>
+                                        {testResults.status !== "error" && (
+                                            <span className="text-sm font-bold">
+                                                {testResults.passed} / {testResults.total} Passed
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Error Message */}
+                                    {testResults.status === "error" && (
+                                        <pre className="whitespace-pre-wrap text-red-700 text-xs">{testResults.stderr}</pre>
+                                    )}
+                                    
+                                    {/* Individual Test Results */}
+                                    {testResults.testResults && testResults.testResults.length > 0 && (
+                                        <div className="space-y-2">
+                                            {testResults.testResults.map((result: any, idx: number) => (
+                                                <div key={idx} className="bg-white/50 p-2 rounded border border-current/10">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {result.passed ? (
+                                                            <span className="text-green-600 font-bold">✓</span>
+                                                        ) : (
+                                                            <span className="text-red-600 font-bold">✗</span>
+                                                        )}
+                                                        <span className="text-xs font-bold">Test {idx + 1}</span>
+                                                    </div>
+                                                    <div className="text-xs opacity-75 space-y-0.5">
+                                                        <div><strong>Input:</strong> {result.input}</div>
+                                                        <div><strong>Expected:</strong> {result.expected}</div>
+                                                        <div className={result.passed ? "text-green-700" : "text-red-700"}>
+                                                            <strong>Actual:</strong> {result.actual}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     );
 }
+

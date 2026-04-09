@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MonacoEditor from "@monaco-editor/react";
 import { groq } from "@/lib/groq";
+import { executeCode } from "@/lib/piston";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -53,7 +54,7 @@ interface AssessmentConfig {
 }
 
 interface AssessmentState {
-    phase: "upload" | "assessment" | "results";
+    phase: "upload" | "preview" | "assessment" | "results";
     parsedResume: ParsedResume | null;
     config: AssessmentConfig;
     questions: Record<"aptitude" | "programming" | "verbal", Question[]>;
@@ -125,7 +126,7 @@ export default function ResumeAssessmentPage() {
     const assessmentIdRef = useRef<string>(new Date().getTime().toString()); // Unique ID for this assessment session
 
     // Phase states
-    const [phase, setPhase] = useState<"upload" | "assessment" | "results">("upload");
+    const [phase, setPhase] = useState<"upload" | "preview" | "assessment" | "results">("upload");
 
     // Upload states
     const [isDragging, setIsDragging] = useState(false);
@@ -317,44 +318,47 @@ ${text.slice(0, 4000)}`
         try {
             const skillList = parsedResume.skills.join(", ");
 
-            const prompt = `You are an expert assessment creator. Based on a candidate's resume, generate a customized assessment.
+            const prompt = `You are an expert assessment creator. Based on a candidate's resume, generate a customized assessment with THREE question types.
 
 CANDIDATE SKILLS: ${skillList}
 CANDIDATE EXPERIENCE: ${parsedResume.experience}
 
-Generate EXACTLY this many questions:
-- ${config.aptitude} Aptitude questions (quantitative reasoning, logical reasoning, pattern recognition)
-- ${config.programming} Programming questions (coding problems relevant to: ${skillList})
-- ${config.verbal} Verbal Ability questions (reading comprehension, grammar, vocabulary)
+YOU MUST GENERATE EXACTLY these numbers of questions - no more, no fewer:
+1️⃣ APTITUDE: ${config.aptitude} questions (quantitative, logical reasoning, patterns)
+2️⃣ PROGRAMMING: ${config.programming} questions (coding challenges with test cases)
+3️⃣ VERBAL: ${config.verbal} questions (reading, grammar, vocabulary, communication)
 
-STRICT FORMAT — Return ONLY valid JSON:
+CRITICAL: ALL THREE SECTIONS MUST BE PRESENT IN YOUR RESPONSE. If you cannot generate enough, fill with basic alternatives.
+
+STRICT FORMAT — Return ONLY valid JSON (no markdown):
 {
   "aptitude": [
-    { "id": 1, "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A", "type": "mcq" }
+    { "id": 1, "question": "What is 5 + 3?", "options": ["A) 8", "B) 9", "C) 7", "D) 10"], "correctAnswer": "A", "type": "mcq" },
+    ... (exactly ${config.aptitude} items)
   ],
   "programming": [
-    { 
-      "id": 1, 
-      "question": "Reverse the string", 
+    {
+      "id": 1,
+      "question": "Reverse a string",
       "type": "code",
       "testCases": [
         { "input": "hello", "expected": "olleh" }
       ],
       "defaultCode": {
         "javascript": "function solve(input) {\\n  // Write code here\\n}",
-        "python": "def solve(input):\\n    # Write code here",
-        "java": "class Solution {\\n    public String solve(String input) {\\n        // Write code here\\n    }\\n}"
+        "python": "def solve(input):\\n    pass",
+        "java": "class Solution {\\n    public String solve(String input) {\\n        return null;\\n    }\\n}"
       }
-    }
+    },
+    ... (exactly ${config.programming} items)
   ],
   "verbal": [
-    { "id": 1, "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "C", "type": "mcq" }
+    { "id": 1, "question": "Which word is a synonym of happy?", "options": ["A) Sad", "B) Joyful", "C) Angry", "D) Tired"], "correctAnswer": "B", "type": "mcq" },
+    ... (exactly ${config.verbal} items)
   ]
 }
 
-Make aptitude and verbal relevant to the candidate. Make programming tests vary in difficulty (mix of Easy, Medium, Hard).
-For programming tests, ensure test cases strictly return stringifiable outputs to match.
-CRITICAL LIMITATION: DO NOT write the actual solution or answer inside \`defaultCode\`. The \`defaultCode\` must ONLY contain the empty function signature/boilerplate.`;
+DO NOT OMIT ANY SECTION. Each section must have EXACTLY the number of items specified.`;
 
             const completion = await groq.chat.completions.create({
                 messages: [
@@ -376,18 +380,69 @@ CRITICAL LIMITATION: DO NOT write the actual solution or answer inside \`default
             const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
             const data = JSON.parse(jsonStr);
 
+            console.log("📊 Generated Assessment Data:", {
+                aptitude: data.aptitude?.length || 0,
+                programming: data.programming?.length || 0,
+                verbal: data.verbal?.length || 0,
+                rawData: data
+            });
+
+            // ── ENFORCE EXACT COUNTS ──────────────────────────────────────
+            // Slice arrays to match config exactly (handle both excess and shortage)
+            let aptitudeQuestions = (data.aptitude || []).slice(0, config.aptitude);
+            let programmingQuestions = (data.programming || []).slice(0, config.programming);
+            let verbalQuestions = (data.verbal || []).slice(0, config.verbal);
+
+            // ── FALLBACK: Generate missing verbal questions ────────────────
+            if (verbalQuestions.length < config.verbal) {
+                console.warn(`⚠️ Verbal questions incomplete. Generated: ${verbalQuestions.length}, Expected: ${config.verbal}`);
+                const needed = config.verbal - verbalQuestions.length;
+                const basicVerbalQuestions = [
+                    { id: 1, question: "What is the antonym of 'begin'?", options: ["A) Start", "B) End", "C) Continue", "D) Resume"], correctAnswer: "B", type: "mcq" },
+                    { id: 2, question: "Choose the correct sentence:", options: ["A) She go to school", "B) She goes to school", "C) She going to school", "D) She gone to school"], correctAnswer: "B", type: "mcq" },
+                    { id: 3, question: "What does 'eloquent' mean?", options: ["A) Silent", "B) Expressive and fluent", "C) Confused", "D) Angry"], correctAnswer: "B", type: "mcq" },
+                    { id: 4, question: "Identify the subject: 'The cat sat on the mat'", options: ["A) mat", "B) sat", "C) cat", "D) on"], correctAnswer: "C", type: "mcq" },
+                    { id: 5, question: "Which word is spelled correctly?", options: ["A) Occassion", "B) Ocasion", "C) Occasion", "D) Ocasyon"], correctAnswer: "C", type: "mcq" },
+                ];
+                for (let i = 0; i < needed && i < basicVerbalQuestions.length; i++) {
+                    verbalQuestions.push({
+                        ...basicVerbalQuestions[i],
+                        id: verbalQuestions.length + i + 1
+                    });
+                }
+                console.log(`✅ Added ${needed} fallback verbal questions`);
+            }
+
+            console.log("✅ Final Question Counts:", {
+                expectedAptitude: config.aptitude,
+                actualAptitude: aptitudeQuestions.length,
+                expectedProgramming: config.programming,
+                actualProgramming: programmingQuestions.length,
+                expectedVerbal: config.verbal,
+                actualVerbal: verbalQuestions.length,
+            });
+
             setQuestions({
-                aptitude: (data.aptitude || []).map((q: Question, i: number) => ({ ...q, id: i + 1, userAnswer: "", type: "mcq" })),
-                programming: (data.programming || []).map((q: Question, i: number) => ({
+                aptitude: aptitudeQuestions.map((q: Question, i: number) => ({ ...q, id: i + 1, userAnswer: "", type: "mcq" })),
+                programming: programmingQuestions.map((q: Question, i: number) => ({
                     ...q,
                     id: i + 1,
                     userAnswer: q.defaultCode?.javascript || "",
                     type: "code",
                     selectedLanguage: "javascript"
                 })),
-                verbal: (data.verbal || []).map((q: Question, i: number) => ({ ...q, id: i + 1, userAnswer: "", type: "mcq" })),
+                verbal: verbalQuestions.map((q: Question, i: number) => ({ ...q, id: i + 1, userAnswer: "", type: "mcq" })),
             });
-            setPhase("assessment");
+            
+            // ── VALIDATE COUNT ───────────────────────────────────────────────
+            const expectedTotal = config.aptitude + config.programming + config.verbal;
+            const actualTotal = aptitudeQuestions.length + programmingQuestions.length + verbalQuestions.length;
+            
+            if (actualTotal < expectedTotal) {
+                console.warn(`⚠️ Question count mismatch: Expected ${expectedTotal}, got ${actualTotal}. Some fallback questions were applied.`);
+            }
+            
+            setPhase("preview");
         } catch (err: any) {
             console.error("Question generation error:", err);
             const isRateLimit = err?.message?.includes("429") || err?.message?.includes("quota");
@@ -414,79 +469,37 @@ CRITICAL LIMITATION: DO NOT write the actual solution or answer inside \`default
 
         setQuestions(prev => ({
             ...prev,
-            [tab]: prev[tab].map(qu => qu.id === questionId ? { ...qu, runResult: { status: "running", output: "Evaluating code against test cases...", passed: 0, total: 0 } as any } : qu)
+            [tab]: prev[tab].map(qu => qu.id === questionId ? { ...qu, runResult: { status: "running" as const, output: "⏳ Compiling and running code...", passed: 0, total: 0 } as any } : qu)
         }));
 
         try {
-            const lang = q.selectedLanguage || "javascript";
+            const lang = (q.selectedLanguage || "javascript") as "javascript" | "python" | "java";
+            
+            // Execute code using Piston API (real compiler)
+            const result = await executeCode(lang, q.userAnswer, q.testCases || []);
 
-            // Instruct Groq to mentally execute code against the provided test cases and return structured test results.
-            const prompt = `Act as a strictly objective ${lang} automated test environment. 
-I am providing a user's code snippet and an array of test cases. Your job is to mentally execute the user's function code for EVERY test case and check if the returned output matches the expected output.
-
-User Code:
-${q.userAnswer}
-
-Test Cases:
-${JSON.stringify(q.testCases || [])}
-
-REQUIREMENT: If the code results in an execution error, set "status": "error" and populate "output" with the stack trace. 
-If compilation is successful, run the test cases. Generate the "testResults" array containing exact "actual" evaluations. Compare "actual" with "expected" to set the "passed" boolean.
-
-RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\`\`json):
-{
-  "status": "success" | "error",
-  "output": "Any console stdout or general success/error message.",
-  "passed": number,
-  "total": number,
-  "testResults": [
-    {
-      "input": "...",
-      "expected": "...",
-      "actual": "...",
-      "passed": boolean
-    }
-  ]
-}`;
-
-            const completion = await groq.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "llama-3.1-8b-instant",
-                temperature: 0.1,
-            });
-
-            // Parse output
-            let stdout = completion.choices[0]?.message?.content || "{}";
-            if (stdout.startsWith('```')) {
-                stdout = stdout.replace(/^```[a-z]*\n?/m, '').replace(/\n?```$/, '');
-            }
-
-            let parsedResult;
-            try {
-                parsedResult = JSON.parse(stdout.trim());
-            } catch (err) {
-                parsedResult = { status: "error", output: stdout, passed: 0, total: q.testCases?.length || 0 };
-            }
+            console.log("✅ Code Execution Result:", result);
 
             setQuestions(prev => ({
                 ...prev,
                 [tab]: prev[tab].map(qu => qu.id === questionId ? {
                     ...qu,
                     runResult: {
-                        status: parsedResult.passed === parsedResult.total && parsedResult.total > 0 ? "success" : "failed",
-                        output: parsedResult.output || "Execution completed.",
-                        passed: parsedResult.passed || 0,
-                        total: parsedResult.total || qu.testCases?.length || 0,
-                        testResults: parsedResult.testResults || []
+                        status: result.passed === result.total && result.total > 0 ? "success" : result.status === "error" ? "error" : "failed",
+                        output: result.stderr || result.stdout || "Execution completed",
+                        passed: result.passed || 0,
+                        total: result.total || 0,
+                        testResults: result.testResults || []
                     }
                 } : qu)
             }));
         } catch (err: any) {
+            console.error("❌ Code execution error:", err);
             setQuestions(prev => ({
                 ...prev,
                 [tab]: prev[tab].map(qu => qu.id === questionId ? {
                     ...qu,
-                    runResult: { status: "error", output: err.message, passed: 0, total: 0 }
+                    runResult: { status: "error", output: err.message || "Failed to execute code", passed: 0, total: q.testCases?.length || 0 }
                 } : qu)
             }));
         }
@@ -496,7 +509,19 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
         const calcScore = (tab: AssessmentTab) => {
             const qs = questions[tab];
             if (qs.length === 0) return 0;
-            const correct = qs.filter(q => q.userAnswer === q.correctAnswer).length;
+            
+            // For MCQ: normalize answers by extracting just the first letter
+            const correct = qs.filter(q => {
+                if (q.type === "mcq") {
+                    // Extract first letter from both answers for comparison
+                    const userLetter = q.userAnswer?.charAt(0)?.toUpperCase() || "";
+                    const correctLetter = (q.correctAnswer || "")?.charAt(0)?.toUpperCase() || "";
+                    return userLetter && correctLetter && userLetter === correctLetter;
+                }
+                // For code questions, compare the exact code submission
+                return q.userAnswer === q.correctAnswer;
+            }).length;
+            
             return Math.round((correct / qs.length) * 100);
         };
         setScores({
@@ -657,27 +682,47 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {([
-                                { key: "aptitude" as const, label: "Aptitude", icon: "🧠", color: "text-blue-500" },
-                                { key: "programming" as const, label: "Programming", icon: "💻", color: "text-green-500" },
-                                { key: "verbal" as const, label: "Verbal Ability", icon: "📝", color: "text-purple-500" },
-                            ]).map(({ key, label, icon, color }) => (
-                                <div key={key} className="bg-secondary/30 rounded-xl p-5 border border-border/30">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xl">{icon}</span>
-                                        <span className="font-semibold text-foreground text-sm">{label}</span>
+                                { key: "aptitude" as const, label: "Aptitude", icon: "🧠", color: "from-blue-500 to-cyan-500", description: "Logic, reasoning & math skills" },
+                                { key: "programming" as const, label: "Programming", icon: "💻", color: "from-green-500 to-emerald-500", description: "Coding challenges & algorithms" },
+                                { key: "verbal" as const, label: "Verbal Ability", icon: "📝", color: "from-purple-500 to-pink-500", description: "Communication & language skills" },
+                            ]).map(({ key, label, icon, color, description }) => (
+                                <div key={key} className="bg-gradient-to-br from-card to-secondary/20 rounded-xl p-6 border border-border/30 hover:border-primary/30 transition-all group">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="text-2xl group-hover:scale-110 transition-transform">{icon}</span>
+                                        <div className="flex-1">
+                                            <span className="font-semibold text-foreground text-sm block">{label}</span>
+                                            <span className="text-[11px] text-muted-foreground">{description}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min={1}
-                                            max={20}
-                                            value={config[key]}
-                                            onChange={(e) => setConfig(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
-                                            className="flex-1 accent-primary h-2 rounded-full"
-                                        />
-                                        <span className="text-lg font-bold text-primary w-8 text-center">{config[key]}</span>
+                                    
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <input
+                                                type="range"
+                                                min={1}
+                                                max={20}
+                                                value={config[key]}
+                                                onChange={(e) => setConfig(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
+                                                className="flex-1 accent-primary h-2.5 rounded-full cursor-pointer appearance-none bg-gradient-to-r from-gray-200 to-gray-300"
+                                                style={{
+                                                    background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(config[key] / 20) * 100}%, #e5e7eb ${(config[key] / 20) * 100}%, #e5e7eb 100%)`
+                                                }}
+                                            />
+                                            <span className={`text-lg font-bold w-10 text-right bg-gradient-to-r ${color} bg-clip-text text-transparent`}>
+                                                {config[key]}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-muted-foreground">{config[key]} question{config[key] !== 1 ? 's' : ''}</p>
+                                            <div className="text-xs font-medium text-muted-foreground">
+                                                {config[key] <= 5 && "Essential"}
+                                                {config[key] > 5 && config[key] <= 10 && "Moderate"}
+                                                {config[key] > 10 && config[key] <= 15 && "Comprehensive"}
+                                                {config[key] > 15 && "Intensive"}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-1">{config[key]} questions</p>
                                 </div>
                             ))}
                         </div>
@@ -707,6 +752,93 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
         );
     }
 
+    // ── PHASE: Preview ───────────────────────────────────────────────────
+    if (phase === "preview") {
+        const totalQuestions = questions.aptitude.length + questions.programming.length + questions.verbal.length;
+        
+        return (
+            <div className="container max-w-2xl mx-auto px-4 py-8 animate-fade-in">
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 className="text-2xl font-bold">Your Assessment is Ready</h1>
+                        <p className="text-sm text-muted-foreground mt-1">Review the questions before starting</p>
+                    </div>
+                    <button
+                        onClick={() => setPhase("upload")}
+                        className="px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-secondary transition-all"
+                    >
+                        ← Back
+                    </button>
+                </div>
+
+                {/* Assessment Preview Card */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-lg">
+                    {/* Resume Info */}
+                    <div className="mb-8 pb-6 border-b border-gray-200">
+                        <h2 className="text-lg font-bold text-foreground mb-2">{parsedResume?.name}'s Assessment</h2>
+                        <p className="text-sm text-muted-foreground">{parsedResume?.summary || "Based on your resume"}</p>
+                    </div>
+
+                    {/* Questions Breakdown */}
+                    <div className="grid grid-cols-3 gap-4 mb-8">
+                        {([
+                            { key: "aptitude" as const, label: "Aptitude", icon: "🧠", color: "from-blue-500 to-cyan-500" },
+                            { key: "programming" as const, label: "Programming", icon: "💻", color: "from-green-500 to-emerald-500" },
+                            { key: "verbal" as const, label: "Verbal", icon: "📝", color: "from-purple-500 to-pink-500" },
+                        ]).map(({ key, label, icon, color }) => (
+                            <div key={key} className="bg-gradient-to-br from-card to-secondary/20 rounded-xl p-5 border border-border/30">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-2xl">{icon}</span>
+                                    <span className={`text-2xl font-black bg-gradient-to-r ${color} bg-clip-text text-transparent`}>
+                                        {questions[key].length}
+                                    </span>
+                                </div>
+                                <p className="text-sm font-semibold text-foreground">{label}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {questions[key].length} question{questions[key].length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Total & Info */}
+                    <div className="bg-primary/5 rounded-xl p-5 border border-primary/10 mb-8">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-foreground">Total Questions</p>
+                                <p className="text-2xl font-bold text-primary mt-1">{totalQuestions} questions</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-muted-foreground">Estimated Time</p>
+                                <p className="text-lg font-semibold text-foreground mt-1">{Math.round(totalQuestions * 2)} min</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => setPhase("assessment")}
+                            className="flex-1 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold text-base hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                        >
+                            Start Assessment
+                        </button>
+                        <button
+                            onClick={() => {
+                                setPhase("upload");
+                                setQuestions({ aptitude: [], programming: [], verbal: [] });
+                                setGenerating(false);
+                            }}
+                            className="px-6 py-3 border border-border rounded-xl font-semibold text-sm hover:bg-secondary transition-all"
+                        >
+                            Regenerate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // ── PHASE: Assessment ────────────────────────────────────────────────
     if (phase === "assessment") {
         return (
@@ -720,10 +852,14 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
                     <div className="flex items-center gap-4">
                         <span className="text-sm text-muted-foreground font-medium">
                             {totalAnswered}/{totalQuestions} answered
+                            {totalQuestions < (config.aptitude + config.programming + config.verbal) && (
+                                <span className="text-xs text-yellow-600 ml-2">⚠️ Some categories generated fewer questions</span>
+                            )}
                         </span>
                         <button
                             onClick={submitAssessment}
-                            disabled={totalAnswered < totalQuestions}
+                            disabled={totalQuestions === 0 || totalAnswered < totalQuestions}
+                            title={totalQuestions === 0 ? "No questions generated" : totalAnswered < totalQuestions ? "Answer all questions first" : "Submit your assessment"}
                             className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
                             Submit Assessment
@@ -959,7 +1095,14 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
                             {scores[key]}%
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                            {questions[key].filter(q => q.userAnswer === q.correctAnswer).length}/{questions[key].length} correct
+                            {questions[key].filter(q => {
+                                if (q.type === "mcq") {
+                                    const userLetter = q.userAnswer?.charAt(0)?.toUpperCase() || "";
+                                    const correctLetter = (q.correctAnswer || "")?.charAt(0)?.toUpperCase() || "";
+                                    return userLetter && correctLetter && userLetter === correctLetter;
+                                }
+                                return q.userAnswer === q.correctAnswer;
+                            }).length}/{questions[key].length} correct
                         </p>
                     </div>
                 ))}
@@ -970,7 +1113,14 @@ RETURN STRICTLY RAW JSON MATCHING THIS EXACT SCHEMA (No markdown blocks like \`\
                 <p className="text-sm font-semibold text-muted-foreground mb-2">Overall Score</p>
                 <p className="text-5xl font-black text-primary">
                     {totalQuestions > 0 ? Math.round(
-                        Object.values(questions).flat().filter(q => q.userAnswer === q.correctAnswer).length / totalQuestions * 100
+                        Object.values(questions).flat().filter(q => {
+                            if (q.type === "mcq") {
+                                const userLetter = q.userAnswer?.charAt(0)?.toUpperCase() || "";
+                                const correctLetter = (q.correctAnswer || "")?.charAt(0)?.toUpperCase() || "";
+                                return userLetter && correctLetter && userLetter === correctLetter;
+                            }
+                            return q.userAnswer === q.correctAnswer;
+                        }).length / totalQuestions * 100
                     ) : 0}%
                 </p>
             </div>
