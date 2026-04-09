@@ -5,6 +5,7 @@ import TranscriberBar from "@/components/TranscriberBar";
 import { useInterviews, type Interview, type InterviewType } from "@/contexts/InterviewContext";
 import vapi, { VAPI_ASSISTANT_ID_ONBOARDING } from "@/lib/vapi";
 import { genAI } from "@/lib/gemini";
+import { groq } from "@/lib/groq";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "idle" | "connecting" | "listening" | "generating" | "done";
@@ -80,8 +81,6 @@ const GenerateInterviewPage: React.FC = () => {
       setTranscript("Analyzing your requirements...");
 
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
         let prompt = "";
         if (confirmedDetailsRef.current) {
           const details = confirmedDetailsRef.current;
@@ -109,8 +108,36 @@ Return purely a JSON object structured exactly like this:
 }`;
         }
 
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
+        let responseText = "";
+        
+        // Try Gemini first
+        try {
+          console.log("📌 Attempting to generate with Gemini...");
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          const result = await model.generateContent(prompt);
+          responseText = result.response.text();
+          console.log("✅ Gemini succeeded");
+        } catch (geminiErr) {
+          console.warn("⚠️ Gemini failed, trying Groq fallback...", geminiErr);
+          setTranscript("Gemini overloaded, using Groq...");
+          
+          // Fallback to Groq
+          const groqResponse = await groq.chat.completions.create({
+            model: "llama-3.1-70b-versatile",
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
+          });
+          
+          responseText = groqResponse.choices[0]?.message?.content || "";
+          console.log("✅ Groq generation succeeded");
+        }
+
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
@@ -129,11 +156,11 @@ Return purely a JSON object structured exactly like this:
           setStep("done");
           setTimeout(() => navigate("/"), 2000);
         } else {
-          throw new Error("Failed to parse JSON");
+          throw new Error("Failed to parse JSON from AI response");
         }
       } catch (err) {
-        console.error("Gemini Error:", err);
-        setTranscript("Failed to generate interview. Try again.");
+        console.error("❌ Question generation error:", err);
+        setTranscript("Failed to generate interview. Please try again.");
         setStep("idle");
       }
     };

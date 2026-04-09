@@ -5,6 +5,7 @@ import TranscriberBar from "@/components/TranscriberBar";
 import { useInterviews } from "@/contexts/InterviewContext";
 import vapi, { VAPI_ASSISTANT_ID_INTERVIEW } from "@/lib/vapi";
 import { genAI } from "@/lib/gemini";
+import { groq } from "@/lib/groq";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "idle" | "connecting" | "listening" | "evaluating" | "done";
@@ -55,7 +56,6 @@ const InterviewPage: React.FC = () => {
       setTranscript("Evaluating your answers...");
       
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const interviewQuestions = interview.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n");
         const prompt = `You are an expert interviewer evaluating a candidate for a ${interview.role} role (${interview.techStack}, ${interview.experienceLevel}, ${interview.interviewType}).
 Here are the questions they were supposed to be asked: 
@@ -66,14 +66,42 @@ ${fullConversationRef.current}
 
 Return JSON strictly in this format without markdown code blocks: { "score": <0-100 number>, "summary": "<2 sentences string>", "strengths": ["...", "..."], "improvements": ["..."] }`;
         
-        const result = await model.generateContent(prompt);
-        const jsonMatch = result.response.text().match(/\{[\s\S]*\}/);
+        let responseText = "";
+        
+        // Try Gemini first
+        try {
+          console.log("📌 Attempting evaluation with Gemini...");
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          const result = await model.generateContent(prompt);
+          responseText = result.response.text();
+          console.log("✅ Gemini evaluation succeeded");
+        } catch (geminiErr) {
+          console.warn("⚠️ Gemini evaluation failed, trying Groq fallback...", geminiErr);
+          setTranscript("Using Groq for evaluation...");
+          
+          const groqResponse = await groq.chat.completions.create({
+            model: "llama-3.1-70b-versatile",
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
+          });
+          
+          responseText = groqResponse.choices[0]?.message?.content || "";
+          console.log("✅ Groq evaluation succeeded");
+        }
+        
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         
         if (jsonMatch) {
           const feedback = JSON.parse(jsonMatch[0]);
           await updateInterview(interview.id, { 
             completed: true, 
-            transcript: fullConversationRef.current, // Save the actual spoken transcript!
+            transcript: fullConversationRef.current,
             feedback: feedback 
           });
           setTranscript("Evaluation complete! Redirecting...");
@@ -83,7 +111,7 @@ Return JSON strictly in this format without markdown code blocks: { "score": <0-
           throw new Error("JSON parse failed");
         }
       } catch (err) {
-        console.error("Evaluation Error:", err);
+        console.error("❌ Evaluation error:", err);
         setTranscript("Evaluation failed. Saving transcript without feedback...");
         await updateInterview(interview.id, { completed: true, transcript: fullConversationRef.current });
         setStep("idle");

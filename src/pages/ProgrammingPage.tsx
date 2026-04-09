@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import MonacoEditor from "@monaco-editor/react";
 import VoiceAvatar from "@/components/VoiceAvatar";
 import { genAI } from "@/lib/gemini";
+import { groq } from "@/lib/groq";
 import { cn } from "@/lib/utils";
 import { detectTypo, resetTypoTracking } from "@/lib/typoDetector";
 import vapi from "@/lib/vapi";
@@ -175,7 +176,6 @@ YOUR TASKS:
         if (!hasStarted || !vapiConnected) return;
 
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
             const prompt = `The user is writing code for: ${activeQuestion.title}.
 Current code snapshot in ${language}:
 \`\`\`
@@ -185,13 +185,36 @@ Check if there is a very obvious syntax typo (like "fur" instead of "for", "whil
 If there is a clear error, reply ONLY with a short, friendly hint (1 sentence max). Do not be overly pedantic if it's just incomplete (like a missing closing brace on a newly opened function).
 If their code is fine, or incomplete but correct so far, reply EXACTLY with "SILENT".`;
 
-            const result = await model.generateContent(prompt);
-            const text = result.response.text().trim();
+            let responseText = "";
+            
+            // Try Gemini first
+            try {
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const result = await model.generateContent(prompt);
+                responseText = result.response.text().trim();
+            } catch (geminiErr) {
+                console.warn("⚠️ Gemini analysis failed, trying Groq fallback...", geminiErr);
+                
+                // Fallback to Groq
+                const groqResponse = await groq.chat.completions.create({
+                    model: "llama-3.1-70b-versatile",
+                    messages: [
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+                    ],
+                    temperature: 0.5,
+                    max_tokens: 256
+                });
+                
+                responseText = groqResponse.choices[0]?.message?.content?.trim() || "";
+            }
 
-            if (text && text !== "SILENT" && !text.includes("SILENT") && text.length > 5) {
+            if (responseText && responseText !== "SILENT" && !responseText.includes("SILENT") && responseText.length > 5) {
                 // Use vapi.say() to FORCE the agent to speak immediately
                 // @ts-ignore
-                vapi.say(text);
+                vapi.say(responseText);
             }
         } catch (err) {
             console.error("Background AI evaluation error", err);
