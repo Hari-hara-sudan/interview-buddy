@@ -175,8 +175,10 @@ export default function JobsPage() {
     }
 
     const encodeSearch = encodeURIComponent(queryTerm);
-    // Direct API call - works in both dev and production
-    const apiUrl = `https://api.adzuna.com/v1/api/jobs/in/search/${currentPage}?app_id=${appId}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${encodeSearch}&content-type=application/json`;
+    // Use /api/adzuna endpoint:
+    // - In dev: routes through Vite proxy
+    // - In production: routes to serverless function
+    const apiUrl = `/api/adzuna/in/search/${currentPage}?app_id=${appId}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${encodeSearch}&content-type=application/json`;
     
     const response = await fetch(apiUrl);
 
