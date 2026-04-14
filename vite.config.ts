@@ -11,13 +11,6 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
-    proxy: {
-      '/api/adzuna': {
-        target: 'https://api.adzuna.com/v1/api/jobs',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/adzuna/, ''),
-      },
-    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
